@@ -1,1 +1,56 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'VT323', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+@layer base {
+  body {
+    background-color: #000;
+    color: #fff;
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'VT323', monospace;
+  }
+}
+
+.pixel-art {
+  image-rendering: pixelated;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* The Arena Screen Aspect Ratio Enforcer */
+.game-container {
+  aspect-ratio: 2 / 3;
+  width: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  position: relative;
+  background-color: transparent;
+  border: 4px solid #fff;
+  overflow: hidden;
+}
+
+@media (max-aspect-ratio: 2/3) {
+  .game-container {
+    width: 100vw;
+    height: auto;
+  }
+}
+
+@media (min-aspect-ratio: 2/3) {
+  .game-container {
+    width: auto;
+    height: 100vh;
+  }
+}

@@ -1,73 +1,16 @@
-# React + TypeScript + Vite
+# Pong 1v1 Frontend (`pong-fe`)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React client for the Pong 1v1 online multiplayer game.
 
-Currently, two official plugins are available:
+## Architecture
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **React 19 & Vite**: Ultra-fast module bundling and modern UI rendering.
+- **Tailwind CSS 4**: Used for UI styling, centering the arena, creating responsive scaling logic (`aspect-ratio: 2/3`) and applying the global `pixel-art` font themes.
+- **Native WebSockets**: A singleton `WebSocketClient` connects exactly to `ws://[host]:3000` to receive server game states dynamically.
+- **Interpolation Loop**: Uses client state syncing `stateRef` mapped to `renderState` alongside rapid DOM manipulation to transition 30fps inputs smoothly to display at standard framerates natively.
+- **Responsive Controls**: Mouse, Keyboard (L/R arrows & Spacebar to Serve), and Touchscreen virtual buttons are perfectly scaled within the logical coordinates setup.
 
-## React Compiler
+## Running
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+1. Install dependencies at the workspace root using `bun install`.
+2. Start the dev server using `bun run dev` (Runs concurrently from root).

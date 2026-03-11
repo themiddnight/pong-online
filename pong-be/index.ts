@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from 'http';
+import { setupWebSocket } from './src/features/network/WebSocketServer';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -6,9 +8,12 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("Hello Express with TypeScript and Bun!");
+  res.send("Pong Backend API is running.");
 });
 
-app.listen(port, () => {
-  console.log(`Server is running at http://localhost:${port}`);
+const server = createServer(app);
+setupWebSocket(server);
+
+server.listen(port, () => {
+  console.log(`Server (HTTP & WS) is running at http://localhost:${port}`);
 });

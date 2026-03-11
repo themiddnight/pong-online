@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "pong-fe",
-    "pong-be"
+    "pong-be",
+    "pong-shared"
   ],
   "scripts": {
     "dev": "concurrently \"bun run --cwd pong-be dev\" \"bun run --cwd pong-fe dev\"",
