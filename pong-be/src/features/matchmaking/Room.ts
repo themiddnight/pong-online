@@ -30,6 +30,7 @@ export class Room {
         position: { x: 500, y: 750 },
         velocity: { x: 0, y: 0 },
         isPowerHitActive: false,
+        bounceContact: null,
       },
       serverTurn: PlayerRole.CREATOR,
     };

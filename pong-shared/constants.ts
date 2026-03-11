@@ -13,6 +13,7 @@ export const PAD_OFFSET_Y = 100; // Distance from top/bottom edge
 export const BALL_SIZE = 30;
 export const BALL_SPEED_START = 800; // units per second
 export const POWER_HIT_MULTIPLIER = 2.0;
+export const BOUNCE_BLEND_FACTOR = 0.5; // 0.0 = pure physics reflection, 1.0 = pure Arkanoid pad-position
 
 // Maximum distance from pad to consider a valid power hit (in logical units)
 export const POWER_HIT_DISTANCE_THRESHOLD = 100;

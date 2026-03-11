@@ -1,0 +1,54 @@
+อยากจะสร้างเกม pong แบบ ง่ายๆ คล้ายๆ ใน atari เพียงแต่
+- เป็น online 1-1 per room/session
+- arena ตัวเกมเป็นแนวตั้ง ratio 2:3 ตัว loacal player จะอยู่ตำแหน่งล่างจองเจอเสมอ
+- ทั้ง local และ remote player จะเห็นการเคลื่อนที่ของ ball ที่เหมือนกัน (แต่คนละฝั่ง) และการขยับของ opponent โดย realtime (อาจจะ trottle 30 fpd แต่ให้ frontend ที่ได้ข้อมูล trottled มาทำให้ smooth ขึ้นเป็น 60 fps
+
+ระบบการ create/join session
+- จะมี user 2 role คือ creater และ joiner เป็นแกม 1-1
+- ระบบคือ ในหน้าหลักจะมี 2 ปุ่ม คือ create และ join
+- ถ้า create:
+  - จะมี random uuid สำหรับเป็นเลขห้อง ให้แสดงพร้อมแุ่ม copy uuid นั้น หรือ share ส่งให้เพื่อน
+  - ในระหว่างนี้ จะขึ้นสถานะ waiting รอคนเข้ามา join ห้องนี้ด้วย
+- ถ้า join
+  - มี input และปุ่ม paste เพื่อใส่ uuid ที่ได้มาจากเพื่อน
+  - มีปุ่ม join
+- ถ้า joiner และ creater เจอกันแล้ว redirect ไปหน้าสนาม pong เลย 
+
+กติกาในเกม
+- จะมี role ในเง่การแข่ง มี server (คนเสิฟเริ่มเกม) และ player(ผู่เล่นอีกฝั่ง)
+- ถ้าในมุมของการเล่น จะมี player (local player) และ opponent (remote player)
+- creater เป็นผู้ serve ก่อนเสมอ จนกว่าจะเสียแต้ม ถึงผลัดให้อีกฝ่ายเป็นคน serve สลับแบบนี้ไปเรื่อยๆ
+- แต่ละ round ลูก pong จะยังไม่เด้งทันที แต่คาติดไว้ที่ pad ของผู้ serve จนกว่าจะมี action ให้ดีดลูก pong ไป
+- ขอบสนามซ้ายขวาจะเด้ง ball ได้ แต่ด้านหลังของ pad ของ player แต่ละฝั่ง จะไม่มีพิื่นที่ให้เด้ง ผู้เล่นต้องเอา pad มารับให้ได้ ถ้าไม่ทัน ลูกวิ่งเลยไปข้างหลัง ถือว่าเสียแต้ม แบบเดียวกับ pong ใน atari
+- จะมีตัวเลข score บอกแต้มแต่ละผั่ง แบบเดียวกับเวอร์ชั่น atari ดั้งเดิม และเป็น endless game
+
+งานภาพ
+- ใช้ background สีดำ element สีขาว
+- ทำภาพให้ดู pixelette เท่าที่จะเป็นไปได้ เช่น ใช้ font แนว pixel, ลูกบอลเป็นจุด 4 เหลี่ยม ฯลฯ
+- arena ให้เป็น ration 2:3 vergical และ contained fit in screen ทุกกรณี ไม่ว่าจะบน screen size ไหน
+
+กฏและ physics
+- หลักๆ มีสามอย่าง คือ เริ่ม serve, move pad ซ้าย-ขวา, power hit ถ้ากดให้ตรงจังหวะตอนลูกอยู่บน pad หรือใกล่ถึง pad เราประมาณนึง จะเป็นการทำให้เด้งกลับไปด้วยความเร็ว x2 พร้อม effect ที่บอกว่า feature นี้ทำงาน
+- power hit จะมีผลแค่ตอนใช้ครั้งแรกเท่านั้น ไม่ส่งผลต่อความเร็วของ ball ตลอดเกม เช่น ถ้า user power hit ได้, user B รับได้แต่ไม่กด power hit ความเร็วลูกจะกลับมา x1 เหมือนเดิม
+- ถ้าไม่ใช้ power hit ลูกจะกระดอนปกติ
+- มุมกระทบและสะท้อนบน pad จะไม่เท่ากันตลอด pad แบบ original verion แต่จะอยู่ระหว่าง -45 - +45 องศา (นับจากแกนตั้ง +y vertical ในมุมของ player) ไล่ไปตลอดทั้ง pad เช่น ถ้าลูกมากระทบที่ฝั่งซ้ายสุดจอง pad มันจะกระดอนกลับไป -45 องศาเสมอ หรือถ้าลูกกระทบกลาง pad จะเด้งขึ้นไปตรงๆ ลักษณะคล้ายเกม arkanoid ใน NES
+- ถ้าใช้ power hit ลูกจะกระดอนเป็นมุมแคบลง 2 เท่า เช่น จากเดิมลูกโดนขวาสุดของ pad จะกระดอนกลับไป 45 องศา แต่ถ้าใส่ power hit จะกระดอนกลับไป 45/2 = 22.5 องศาเท่านั้น
+
+การ control
+- pc
+  - spacebar: serve, power hit
+  - left-right arrow: เลือน pad
+- mogile 
+  - มีปุ่ม virtual input ให้ 3 ปุ่ม คือ เลื่อนซ้าย, serve/power hit/ เลื่อนขวา
+  - อยู่ด้านล่างของกรอบ arena
+
+system
+-@pong-fe ใช้ react (vitte created with tailwind css) @pong-be ใช้ express typescript (ตอนนี้เตรียมโครงโปรเจ็คไว้แล้ว)
+- ให้ stucture แบบ feature based ทั้งคู่
+- ใช้ระบบ native websocket ไม่ต้องใช้ socket.io
+- ใช้ grace period 1 นาที กรณีหลุดจาก connection โดยไม่ตั้งใขระหว่างเล่นแกม
+- มีระบบ Client-Side Prediction
+- event names และ string literally ต่างๆ อยากให้ใช้ constant หรืแ enum โดยเฉพาะ event names ที่ backend และ frontend ที่ต้องใช้แบบเดียวกันเหมือนกัน ให้ใช้ไฟล์เหมือนกัน copy กันได้เลย
+- ใช้ bun เป็น runtime
+
+ทั้งหมดประมาณนี้ จะให้โปรเจ็คนี้เป็น example ของการใช้ websocket เป็นหลัก และยังไงนอกจากเขียนโค้ดแล้ว ให้เขียนเอกสาร readme ของแต่ละส่วน และเอกสาร rule and constrain เป็นเอกสารหลักสุด ไว้ระบุกฏกติกา ระบบและวิธีเล่นไว้ด้วย

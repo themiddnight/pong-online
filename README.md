@@ -26,9 +26,10 @@
 
 สำหรับนักพัฒนาที่ต้องการศึกษา Real-Time Netcode หรือทำความเข้าใจ Logic ของเกม สามารถอ้างอิงจากเอกสารต่อไปนี้:
 
-- 📘 [**tech_architecture.md**](./tech_architecture.md): เอกสารสรุปสถาปัตยกรรมระบบ, Game Phases Loop, และแผนภาพ Flow การทำงานของ WebSockets
-- 📙 [**engine_standards.md**](./engine_standards.md): เอกสารเปรียบเทียบมาตรฐาน Game Engine (TCP vs UDP) และ 3 เทคนิคหลักที่เกมระดับสากลใช้ (Interpolation, Prediction และ Lag Compensation) สำหรับการต่อยอดโปรเจกต์
-- 📓 [**rule_and_constrain.md**](./rule_and_constrain.md): ข้อกำหนดและกติกาของตัวเกมทั้งหมด สำหรับการพอร์ตระบบเกม Atari สู่แพลตฟอร์มออนไลน์
+- 📘 [**tech_architecture.md**](./docs/tech_architecture.md): เอกสารสรุปสถาปัตยกรรมระบบ, Game Phases Loop, และแผนภาพ Flow การทำงานของ WebSockets
+- 📙 [**engine_standards.md**](./docs/engine_standards.md): เอกสารเปรียบเทียบมาตรฐาน Game Engine (TCP vs UDP) และ 3 เทคนิคหลักที่เกมระดับสากลใช้ (Interpolation, Prediction และ Lag Compensation) สำหรับการต่อยอดโปรเจกต์
+- 📓 [**rule_and_constrain.md**](./docs/rule_and_constrain.md): ข้อกำหนดและกติกาของตัวเกมทั้งหมด สำหรับการพอร์ตระบบเกม Atari สู่แพลตฟอร์มออนไลน์
+- ⚛️ [**physics_explanation.md**](./docs/physics_explanation.md): เจาะลึกระบบฟิสิกส์ การคำนวณการชน (CCD) และการผสมผสานมุมสะท้อนแบบสมจริง (Bounce Blending) สำหรับคนไม่มีพื้นฐาน
 
 ---
 
@@ -54,7 +55,7 @@
 4. **Player 1 (ผู้สร้างห้อง)**: กดปุ่ม "Create Room" จากนั้นกด "Copy UUID" เพื่อส่งรหัสให้คู่เล่น
 5. **Player 2 (ผู้เข้าร่วม)**: กดปุ่ม "Join Room" และวาง UUID ที่ได้รับ
 
-*(เกมจะเริ่มต้นทันทีเมื่อผู้เล่นทั้งสองฝ่ายเชื่อมต่อสำเร็จ โดยใช้ปุ่ม `ลูกศรซ้าย/ขวา` เพื่อควบคุม Pad, `Spacebar` เพื่อเสิร์ฟลูก และสร้างช็อต Power Hit)*
+*(เกมจะเริ่มต้นทันทีเมื่อผู้เล่นทั้งสองฝ่ายเชื่อมต่อสำเร็จ โดยใช้ `เมาส์` หรือ `การสัมผัส (Touch)` เลื่อนซ้าย/ขวาเพื่อควบคุม Pad, `คลิก` หรือ `แตะ` เพื่อเสิร์ฟลูก และสร้างช็อต Power Hit)*
 
 ---
 

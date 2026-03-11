@@ -23,6 +23,7 @@ export interface BallState {
   position: Vector2;
   velocity: Vector2;
   isPowerHitActive: boolean;
+  bounceContact: Vector2 | null;
 }
 
 export enum GamePhase {

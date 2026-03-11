@@ -2,7 +2,8 @@ import { Room } from '../matchmaking/Room';
 import { 
   GamePhase, PlayerRole, WebSocketEvents, TICK_RATE, 
   ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, PAD_OFFSET_Y, 
-  BALL_SIZE, BALL_SPEED_START, POWER_HIT_DISTANCE_THRESHOLD, POWER_HIT_MULTIPLIER
+  BALL_SIZE, BALL_SPEED_START, POWER_HIT_DISTANCE_THRESHOLD, POWER_HIT_MULTIPLIER,
+  BOUNCE_BLEND_FACTOR
 } from 'pong-shared';
 import type { Vector2 } from 'pong-shared';
 
@@ -85,6 +86,9 @@ export class GameEngine {
 
     const state = this.room.state;
 
+    // Clear previous tick's bounce contact
+    state.ball.bounceContact = null;
+
     // Only update physics if actively playing
     if (state.phase === GamePhase.PLAYING) {
       this.updatePhysics(dt);
@@ -113,94 +117,141 @@ export class GameEngine {
   private updatePhysics(dt: number) {
     const ball = this.room.state.ball;
     const players = this.room.state.players;
-    
-    // Move ball
-    ball.position.x += ball.velocity.x * dt;
-    ball.position.y += ball.velocity.y * dt;
-
-    // Wall bounce (Left and Right)
-    if (ball.position.x - BALL_SIZE / 2 <= 0) {
-      ball.position.x = BALL_SIZE / 2;
-      ball.velocity.x *= -1;
-    } else if (ball.position.x + BALL_SIZE / 2 >= ARENA_WIDTH) {
-      ball.position.x = ARENA_WIDTH - BALL_SIZE / 2;
-      ball.velocity.x *= -1;
-    }
-
-    // Pad collision variables
     const creator = players[PlayerRole.CREATOR];
     const joiner = players[PlayerRole.JOINER];
     if (!creator || !joiner) return;
 
-    // Check collision with Creator (Bottom pad)
-    if (ball.velocity.y > 0 && this.checkPadCollision(ball.position, creator.position)) {
-      this.resolvePadBounce(creator, -1);
+    const halfBall = BALL_SIZE / 2;
+    const halfPadH = PAD_HEIGHT / 2;
+    const halfPadW = PAD_WIDTH / 2;
+
+    // --- Continuous Collision Detection (CCD) for Pad ---
+    // Instead of moving first then checking overlap, calculate exact time
+    // the ball edge reaches the pad face within this tick.
+    const startX = ball.position.x;
+    const startY = ball.position.y;
+
+    let collisionT: number | null = null;
+    let collidedPlayer: typeof creator | null = null;
+    let bounceDir = 0;
+
+    if (ball.velocity.y > 0) {
+      // Ball moving DOWN → may hit Creator pad (bottom)
+      const padFaceY = creator.position.y - halfPadH; // top face of pad
+      const ballEdgeY = startY + halfBall;
+      const distToFace = padFaceY - ballEdgeY;
+
+      if (distToFace >= 0) {
+        const t = distToFace / ball.velocity.y;
+        if (t >= 0 && t <= dt) {
+          // Check X alignment at the moment of collision
+          const ballXAtT = startX + ball.velocity.x * t;
+          if (
+            ballXAtT + halfBall >= creator.position.x - halfPadW &&
+            ballXAtT - halfBall <= creator.position.x + halfPadW
+          ) {
+            collisionT = t;
+            collidedPlayer = creator;
+            bounceDir = -1; // bounce UP
+          }
+        }
+      }
+    } else if (ball.velocity.y < 0) {
+      // Ball moving UP → may hit Joiner pad (top)
+      const padFaceY = joiner.position.y + halfPadH; // bottom face of pad
+      const ballEdgeY = startY - halfBall;
+      const distToFace = ballEdgeY - padFaceY;
+
+      if (distToFace >= 0) {
+        const t = distToFace / Math.abs(ball.velocity.y);
+        if (t >= 0 && t <= dt) {
+          const ballXAtT = startX + ball.velocity.x * t;
+          if (
+            ballXAtT + halfBall >= joiner.position.x - halfPadW &&
+            ballXAtT - halfBall <= joiner.position.x + halfPadW
+          ) {
+            collisionT = t;
+            collidedPlayer = joiner;
+            bounceDir = 1; // bounce DOWN
+          }
+        }
+      }
     }
-    // Check collision with Joiner (Top pad)
-    else if (ball.velocity.y < 0 && this.checkPadCollision(ball.position, joiner.position)) {
-      this.resolvePadBounce(joiner, 1);
+
+    if (collisionT !== null && collidedPlayer) {
+      // Move ball to exact collision point
+      ball.position.x = startX + ball.velocity.x * collisionT;
+      ball.position.y = startY + ball.velocity.y * collisionT;
+
+      // Record contact point for frontend animation
+      ball.bounceContact = { x: ball.position.x, y: ball.position.y };
+
+      // Resolve bounce (computes new velocity only)
+      this.resolvePadBounce(collidedPlayer, bounceDir);
+
+      // Move ball for remaining time with new (bounced) velocity
+      const remainingDt = dt - collisionT;
+      ball.position.x += ball.velocity.x * remainingDt;
+      ball.position.y += ball.velocity.y * remainingDt;
+    } else {
+      // No pad collision — move ball normally
+      ball.position.x += ball.velocity.x * dt;
+      ball.position.y += ball.velocity.y * dt;
+    }
+
+    // Wall bounce (Left and Right) — discrete is acceptable here
+    if (ball.position.x - halfBall <= 0) {
+      ball.position.x = halfBall;
+      ball.velocity.x *= -1;
+    } else if (ball.position.x + halfBall >= ARENA_WIDTH) {
+      ball.position.x = ARENA_WIDTH - halfBall;
+      ball.velocity.x *= -1;
     }
 
     // Check Out of bounds (Scoring)
     if (ball.position.y > ARENA_HEIGHT) {
-      // Joiner scores! (Creator missed)
       this.scorePoint(PlayerRole.JOINER, PlayerRole.CREATOR);
     } else if (ball.position.y < 0) {
-      // Creator scores! (Joiner missed)
       this.scorePoint(PlayerRole.CREATOR, PlayerRole.JOINER);
     }
   }
 
-  private checkPadCollision(ballPos: Vector2, padPos: Vector2): boolean {
-    const halfPadW = PAD_WIDTH / 2;
-    const halfPadH = PAD_HEIGHT / 2;
-    const halfBall = BALL_SIZE / 2;
-
-    return (
-      ballPos.x + halfBall >= padPos.x - halfPadW &&
-      ballPos.x - halfBall <= padPos.x + halfPadW &&
-      ballPos.y + halfBall >= padPos.y - halfPadH &&
-      ballPos.y - halfBall <= padPos.y + halfPadH
-    );
-  }
-
-  private resolvePadBounce(player: any, dirY: number) {
+  private resolvePadBounce(player: { position: Vector2 }, dirY: number) {
     const ball = this.room.state.ball;
-    
-    // Arkanoid style reflection: dependent on where the ball hits the pad
-    const hitOffset = ball.position.x - player.position.x; // Range roughly: -PAD_WIDTH/2 to +PAD_WIDTH/2
-    const normalizedIntersect = hitOffset / (PAD_WIDTH / 2); // -1.0 to 1.0
 
-    // Constrain to -45 to +45 degrees normally => Math.PI / 4
-    let bounceAngle = normalizedIntersect * (Math.PI / 4);
+    // --- Physics reflection angle (angle of incidence = angle of reflection) ---
+    // Compute incoming angle relative to pad normal (vertical axis)
+    // atan2 gives the angle of the velocity vector; we want the angle from the Y axis
+    const incomingAngle = Math.atan2(ball.velocity.x, Math.abs(ball.velocity.y));
+    // Physics reflection simply mirrors around the normal → same angle, opposite Y direction
+    const physicsAngle = incomingAngle;
+
+    // --- Arkanoid pad-position angle ---
+    const hitOffset = ball.position.x - player.position.x;
+    const normalizedIntersect = hitOffset / (PAD_WIDTH / 2); // -1.0 to 1.0
+    const padAngle = normalizedIntersect * (Math.PI / 4); // -45° to +45°
+
+    // --- Blend both angles ---
+    let bounceAngle = physicsAngle * (1 - BOUNCE_BLEND_FACTOR) + padAngle * BOUNCE_BLEND_FACTOR;
 
     let currentSpeed = this.baseBallSpeed;
 
     if (ball.isPowerHitActive) {
       currentSpeed *= POWER_HIT_MULTIPLIER;
-      // Power hit halves the angle => makes it more direct
-      bounceAngle /= 2;
+      bounceAngle /= 2; // Power hit narrows angle
     }
 
-    // If ball hits creator (bottom pad, dirY = -1), Y velocity goes up. Thus angle 0 = straight up (-Y).
-    // Math: Vx = speed * Math.sin(angle), Vy = speed * -Math.cos(angle) * dirY (if dirY=1 went up, wait dirY=-1 means bounce up)
-    
-    // Let's standardise: 
-    // dirY = -1 means it bounces UP (Velocity negative Y)
-    // dirY = 1 means it bounces DOWN (Velocity positive Y)
+    // Clamp final angle to prevent extreme horizontal shots
+    const maxAngle = Math.PI / 4; // ±45°
+    bounceAngle = Math.max(-maxAngle, Math.min(maxAngle, bounceAngle));
+
+    // dirY = -1 → bounce UP, dirY = 1 → bounce DOWN
     ball.velocity.x = currentSpeed * Math.sin(bounceAngle);
     ball.velocity.y = currentSpeed * Math.cos(bounceAngle) * dirY;
-
-    // Reset power hit flag for next hit (opponent has to react and press again to keep speed)
-    // Once it bounces off pad, it runs at speed 1x or 2x, but next hit won't default to 2x.
-    // Wait, requirement: "Speed x2 only lasts until opponent hits it. If opponent hits normally, it goes back to x1."
-    // So by clearing isPowerHitActive here, the *current velocity* remains high, but upon NEXT bounce, if opponent didn't press power hit, `isPowerHitActive` will be false, and speed returns to 1x.
     ball.isPowerHitActive = false;
 
-    // Nudge ball out of pad to prevent sticking
-    const halfPadH = PAD_HEIGHT / 2;
-    const halfBall = BALL_SIZE / 2;
-    ball.position.y = player.position.y + (dirY * (halfPadH + halfBall + 1));
+    // No positional nudge needed — CCD places ball at exact collision point,
+    // and remaining dt movement with new velocity moves it away naturally.
   }
 
   private scorePoint(winnerRole: PlayerRole, loserRole: PlayerRole) {

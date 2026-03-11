@@ -3,7 +3,7 @@ import {
   PlayerRole, GamePhase, WebSocketEvents,
   ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, BALL_SIZE
 } from 'pong-shared';
-import type { GameState } from 'pong-shared';
+import type { GameState, Vector2 } from 'pong-shared';
 import { wsClient } from '../network/WebSocketClient';
 
 interface ArenaProps {
@@ -25,14 +25,42 @@ export function Arena({ role }: ArenaProps) {
 
   const [renderState, setRenderState] = useState<GameState | null>(null);
 
+  // Ball display position & transition (for two-phase bounce animation)
+  const [ballDisplay, setBallDisplay] = useState<{ pos: Vector2; transition: string } | null>(null);
+  const bounceRafRef = useRef<number | null>(null);
+
   // Connection listeners
   useEffect(() => {
-    const handleStateUpdate = (payload: { state: GameState, timestamp: number }) => {
+    const handleStateUpdate = (payload: { state: GameState; timestamp: number }) => {
       stateRef.current = payload.state;
       setRenderState(payload.state);
+
+      const ball = payload.state.ball;
+      if (ball.bounceContact) {
+        // Two-phase bounce animation:
+        // Phase 1: Snap ball to contact point instantly (no transition)
+        if (bounceRafRef.current) cancelAnimationFrame(bounceRafRef.current);
+        setBallDisplay({ pos: ball.bounceContact, transition: 'none' });
+
+        // Phase 2: After browser paints contact frame, transition to actual position
+        bounceRafRef.current = requestAnimationFrame(() => {
+          bounceRafRef.current = requestAnimationFrame(() => {
+            setBallDisplay({
+              pos: ball.position,
+              transition: 'left 33ms linear, top 33ms linear',
+            });
+            bounceRafRef.current = null;
+          });
+        });
+      } else {
+        setBallDisplay({
+          pos: ball.position,
+          transition: 'left 33ms linear, top 33ms linear',
+        });
+      }
     };
 
-    const handleGameOver = (payload: { forfeit?: boolean, loserRole: PlayerRole }) => {
+    const handleGameOver = (payload: { forfeit?: boolean; loserRole: PlayerRole }) => {
       alert(payload.forfeit ? `${payload.loserRole} Disconnected! You win.` : `Game Over!`);
       window.location.reload();
     };
@@ -43,6 +71,7 @@ export function Arena({ role }: ArenaProps) {
     return () => {
       wsClient.off(WebSocketEvents.GAME_STATE_UPDATE, handleStateUpdate);
       wsClient.off(WebSocketEvents.GAME_OVER, handleGameOver);
+      if (bounceRafRef.current) cancelAnimationFrame(bounceRafRef.current);
     };
   }, []);
 
@@ -83,7 +112,7 @@ export function Arena({ role }: ArenaProps) {
     }
   }, []);
 
-  // --- React Event Handlers (inline, no useEffect timing issues) ---
+  // --- React Event Handlers ---
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const logicalX = screenXToLogical(e.clientX);
@@ -153,6 +182,10 @@ export function Arena({ role }: ArenaProps) {
   const getRenderY = (y: number) => isInverted ? ARENA_HEIGHT - y : y;
   const getRenderX = (x: number) => isInverted ? ARENA_WIDTH - x : x;
 
+  // Use ballDisplay for ball rendering (handles bounce animation), fallback to ball.position
+  const ballPos = ballDisplay?.pos ?? ball.position;
+  const ballTransition = ballDisplay?.transition ?? 'left 33ms linear, top 33ms linear';
+
   return (
     <div
       ref={arenaRef}
@@ -169,10 +202,10 @@ export function Arena({ role }: ArenaProps) {
       <div className="absolute w-full h-1 bg-white/20 top-1/2 -translate-y-1/2 pointer-events-none"></div>
 
       {/* Scores */}
-      <div className="absolute top-[30%] left-1/2 -translate-x-1/2 text-[15vmax] opacity-20 text-white pointer-events-none font-sans">
+      <div className="absolute top-[25%] inset-x-0 -translate-y-1/2 text-center text-[15vmax] opacity-20 text-white pointer-events-none font-sans leading-none">
         {op?.score || 0}
       </div>
-      <div className="absolute top-[60%] left-1/2 -translate-x-1/2 text-[15vmax] opacity-20 text-white pointer-events-none font-sans">
+      <div className="absolute top-[75%] inset-x-0 -translate-y-1/2 text-center text-[15vmax] opacity-20 text-white pointer-events-none font-sans leading-none">
         {me?.score || 0}
       </div>
 
@@ -186,7 +219,7 @@ export function Arena({ role }: ArenaProps) {
             width: widthPct(PAD_WIDTH),
             height: heightPct(PAD_HEIGHT),
             transform: 'translate(-50%, -50%)',
-            transition: 'left 33ms linear, top 33ms linear'
+            transition: 'left 33ms linear, top 33ms linear',
           }}
         />
       )}
@@ -199,7 +232,7 @@ export function Arena({ role }: ArenaProps) {
             width: widthPct(PAD_WIDTH),
             height: heightPct(PAD_HEIGHT),
             transform: 'translate(-50%, -50%)',
-            transition: 'left 33ms linear, top 33ms linear'
+            transition: 'left 33ms linear, top 33ms linear',
           }}
         />
       )}
@@ -208,12 +241,12 @@ export function Arena({ role }: ArenaProps) {
       <div
         className={`absolute bg-white pointer-events-none ${ball.isPowerHitActive ? 'shadow-[0_0_20px_10px_rgba(255,255,255,0.8)] bg-yellow-200' : ''}`}
         style={{
-          left: toX(getRenderX(ball.position.x)),
-          top: toY(getRenderY(ball.position.y)),
+          left: toX(getRenderX(ballPos.x)),
+          top: toY(getRenderY(ballPos.y)),
           width: widthPct(BALL_SIZE),
           height: heightPct(BALL_SIZE),
           transform: 'translate(-50%, -50%)',
-          transition: 'left 33ms linear, top 33ms linear'
+          transition: ballTransition,
         }}
       />
 
