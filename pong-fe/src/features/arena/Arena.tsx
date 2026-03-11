@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
-import { 
-  PlayerRole, GamePhase, WebSocketEvents, 
-  ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, BALL_SIZE 
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  PlayerRole, GamePhase, WebSocketEvents,
+  ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, BALL_SIZE
 } from 'pong-shared';
 import type { GameState } from 'pong-shared';
 import { wsClient } from '../network/WebSocketClient';
@@ -12,20 +12,24 @@ interface ArenaProps {
 }
 
 export function Arena({ role }: ArenaProps) {
-  // Ref for continuous tracking for interpolation and inputs
   const stateRef = useRef<GameState | null>(null);
-  const movementRef = useRef<'LEFT' | 'RIGHT' | 'STOP'>('STOP');
-  
-  // Interpolated rendering state (60fps)
+  const arenaRef = useRef<HTMLDivElement>(null);
+
+  // Throttle ref for limiting PAD_MOVE sends (~30fps)
+  const lastSendTimeRef = useRef(0);
+
+  // Touch tracking refs
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchMovedRef = useRef(false);
+  const TAP_MOVE_THRESHOLD = 10;
+
   const [renderState, setRenderState] = useState<GameState | null>(null);
 
   // Connection listeners
   useEffect(() => {
     const handleStateUpdate = (payload: { state: GameState, timestamp: number }) => {
       stateRef.current = payload.state;
-      // In a real sophisticated engine, we would store an array of states and lerp between timestamp - 100ms
-      // For simplified 1v1 pong over reliable networks, we just snap or gently lerp the render state directly.
-      setRenderState(payload.state); 
+      setRenderState(payload.state);
     };
 
     const handleGameOver = (payload: { forfeit?: boolean, loserRole: PlayerRole }) => {
@@ -42,71 +46,89 @@ export function Arena({ role }: ArenaProps) {
     };
   }, []);
 
-  // Sync Input Loop (Independent 30fps sync to server)
-  useEffect(() => {
-    const syncInterval = setInterval(() => {
-      if (movementRef.current !== 'STOP' && stateRef.current) {
-        // Calculate optimistic local x
-        const player = stateRef.current.players[role];
-        if (player) {
-          const speed = 600; // units per sec
-          const dt = 1 / 30; // 30 ticks per sec
-          
-          let moveDir = 0;
-          if (movementRef.current === 'RIGHT') moveDir = 1;
-          else if (movementRef.current === 'LEFT') moveDir = -1;
+  // Convert screen X pixel to logical X, handling JOINER inversion
+  const screenXToLogical = useCallback((clientX: number): number => {
+    const arena = arenaRef.current;
+    if (!arena) return ARENA_WIDTH / 2;
 
-          // If we are JOINER our screen is inverted (left is logical right), so reverse input math
-          const adjustedDir = role === PlayerRole.JOINER ? -moveDir : moveDir;
+    const rect = arena.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
+    const ratioX = relativeX / rect.width;
 
-          let nextX = player.position.x + (speed * dt * adjustedDir);
-          nextX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, nextX));
-          
-          wsClient.send(WebSocketEvents.PAD_MOVE, { direction: 'SYNC', x: nextX });
-        }
-      }
-    }, 1000 / 30);
-    return () => clearInterval(syncInterval);
+    let logicalX = ratioX * ARENA_WIDTH;
+
+    if (role === PlayerRole.JOINER) {
+      logicalX = ARENA_WIDTH - logicalX;
+    }
+
+    logicalX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, logicalX));
+    return logicalX;
   }, [role]);
 
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') movementRef.current = 'LEFT';
-      if (e.key === 'ArrowRight') movementRef.current = 'RIGHT';
-      if (e.code === 'Space') {
-        const phase = stateRef.current?.phase;
-        if (phase === GamePhase.SERVING) {
-          wsClient.send(WebSocketEvents.ACTION_SERVE);
-        } else if (phase === GamePhase.PLAYING) {
-           wsClient.send(WebSocketEvents.ACTION_POWER_HIT);
-        }
-      }
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft' && movementRef.current === 'LEFT') movementRef.current = 'STOP';
-      if (e.key === 'ArrowRight' && movementRef.current === 'RIGHT') movementRef.current = 'STOP';
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
+  // Send pad position with throttling (~30fps)
+  const sendPadPosition = useCallback((logicalX: number) => {
+    const now = Date.now();
+    if (now - lastSendTimeRef.current < 33) return;
+    lastSendTimeRef.current = now;
+    wsClient.send(WebSocketEvents.PAD_MOVE, { direction: 'SYNC', x: logicalX });
   }, []);
 
-  // Mobile Handlers
-  const handleTouchStart = (dir: 'LEFT' | 'RIGHT') => { movementRef.current = dir; };
-  const handleTouchEnd = () => { movementRef.current = 'STOP'; };
-  const handleAction = () => { 
+  // Fire action (serve or power hit)
+  const fireAction = useCallback(() => {
     const phase = stateRef.current?.phase;
     if (phase === GamePhase.SERVING) {
       wsClient.send(WebSocketEvents.ACTION_SERVE);
     } else if (phase === GamePhase.PLAYING) {
       wsClient.send(WebSocketEvents.ACTION_POWER_HIT);
     }
-  };
+  }, []);
+
+  // --- React Event Handlers (inline, no useEffect timing issues) ---
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const logicalX = screenXToLogical(e.clientX);
+    sendPadPosition(logicalX);
+  }, [screenXToLogical, sendPadPosition]);
+
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    fireAction();
+  }, [fireAction]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    touchMovedRef.current = false;
+
+    const logicalX = screenXToLogical(touch.clientX);
+    sendPadPosition(logicalX);
+  }, [screenXToLogical, sendPadPosition]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    if (touchStartRef.current) {
+      const dx = Math.abs(touch.clientX - touchStartRef.current.x);
+      const dy = Math.abs(touch.clientY - touchStartRef.current.y);
+      if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) {
+        touchMovedRef.current = true;
+      }
+    }
+
+    const logicalX = screenXToLogical(touch.clientX);
+    sendPadPosition(logicalX);
+  }, [screenXToLogical, sendPadPosition]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchMovedRef.current) {
+      fireAction();
+    }
+    touchStartRef.current = null;
+    touchMovedRef.current = false;
+  }, [fireAction]);
 
   if (!renderState) {
     return (
@@ -127,18 +149,22 @@ export function Arena({ role }: ArenaProps) {
   const op = renderState.players[opponentRole];
   const ball = renderState.ball;
 
-  // Local Orientation check: ALWAYS show `me` at the bottom (y close to ARENA_HEIGHT).
-  // If my logical position is at the top (Joiner role = Y is 100), we must visually FLIP the arena vertically.
-  // Rendering using 1 - Y or simple CSS rotate! 
-  // CSS transform rotate(180deg) is easiest if we don't want to invert math!
-  // BUT the scores would flip too. Better to invert coordinates mathematically here.
   const isInverted = role === PlayerRole.JOINER;
   const getRenderY = (y: number) => isInverted ? ARENA_HEIGHT - y : y;
-  const getRenderX = (x: number) => isInverted ? ARENA_WIDTH - x : x; // Also flip X so left/right remain intuitive on screen
+  const getRenderX = (x: number) => isInverted ? ARENA_WIDTH - x : x;
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-black pixel-art select-none">
-      
+    <div
+      ref={arenaRef}
+      className="w-full h-full relative overflow-hidden bg-black pixel-art select-none cursor-none"
+      style={{ touchAction: 'none' }}
+      onMouseMove={handleMouseMove}
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+
       {/* Background Center Line */}
       <div className="absolute w-full h-1 bg-white/20 top-1/2 -translate-y-1/2 pointer-events-none"></div>
 
@@ -152,8 +178,8 @@ export function Arena({ role }: ArenaProps) {
 
       {/* Pads */}
       {me && (
-        <div 
-          className="absolute bg-white"
+        <div
+          className="absolute bg-white pointer-events-none"
           style={{
             left: toX(getRenderX(me.position.x)),
             top: toY(getRenderY(me.position.y)),
@@ -165,8 +191,8 @@ export function Arena({ role }: ArenaProps) {
         />
       )}
       {op && (
-        <div 
-          className="absolute bg-white"
+        <div
+          className="absolute bg-white pointer-events-none"
           style={{
             left: toX(getRenderX(op.position.x)),
             top: toY(getRenderY(op.position.y)),
@@ -179,8 +205,8 @@ export function Arena({ role }: ArenaProps) {
       )}
 
       {/* Ball */}
-      <div 
-        className={`absolute bg-white ${ball.isPowerHitActive ? 'shadow-[0_0_20px_10px_rgba(255,255,255,0.8)] bg-yellow-200' : ''}`}
+      <div
+        className={`absolute bg-white pointer-events-none ${ball.isPowerHitActive ? 'shadow-[0_0_20px_10px_rgba(255,255,255,0.8)] bg-yellow-200' : ''}`}
         style={{
           left: toX(getRenderX(ball.position.x)),
           top: toY(getRenderY(ball.position.y)),
@@ -193,47 +219,23 @@ export function Arena({ role }: ArenaProps) {
 
       {/* Overlays / States */}
       {renderState.phase === GamePhase.WAITING_FOR_OPPONENT && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center pointer-events-none">
           <p className="text-3xl animate-pulse text-white">Waiting for opponent...</p>
         </div>
       )}
       {renderState.phase === GamePhase.PAUSED_DISCONNECT && (
-        <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-center">
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center text-center pointer-events-none">
           <p className="text-3xl animate-pulse text-red-500 max-w-sm">Opponent Disconnected. Grace Period 60s...</p>
         </div>
       )}
 
-      {/* Mobile Controls */}
-      <div className="absolute bottom-4 left-4 right-4 flex justify-between z-20 md:hidden opacity-50 space-x-2">
-        <button 
-          className="flex-1 bg-white/20 border border-white py-8 text-2xl active:bg-white/50 touch-manipulation"
-          onTouchStart={() => handleTouchStart('LEFT')}
-          onTouchEnd={handleTouchEnd}
-          onMouseDown={() => handleTouchStart('LEFT')}
-          onMouseUp={handleTouchEnd}
-          onMouseLeave={handleTouchEnd}
-        >
-          &lt;
-        </button>
-        <button 
-          className="flex-1 bg-white/20 border border-white py-8 text-2xl active:bg-white/50 touch-manipulation"
-          onTouchStart={handleAction}
-          onMouseDown={handleAction}
-        >
-          ACT
-        </button>
-        <button 
-          className="flex-1 bg-white/20 border border-white py-8 text-2xl active:bg-white/50 touch-manipulation"
-          onTouchStart={() => handleTouchStart('RIGHT')}
-          onTouchEnd={handleTouchEnd}
-          onMouseDown={() => handleTouchStart('RIGHT')}
-          onMouseUp={handleTouchEnd}
-          onMouseLeave={handleTouchEnd}
-        >
-          &gt;
-        </button>
-      </div>
-      
+      {/* Serving indicator */}
+      {renderState.phase === GamePhase.SERVING && renderState.serverTurn === role && (
+        <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 pointer-events-none">
+          <p className="text-lg text-white/60 animate-pulse">Click / Tap to Serve</p>
+        </div>
+      )}
+
     </div>
   );
 }
