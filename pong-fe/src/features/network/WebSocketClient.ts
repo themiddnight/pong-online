@@ -16,7 +16,18 @@ class WebSocketClient {
 
     this.connectionPromise = new Promise((resolve, reject) => {
       // Connect to the same machine but port 3000
-      const serverUrl = import.meta.env.VITE_WS_SERVER_URL || `ws://${window.location.hostname}:3000`;
+      let serverUrl = import.meta.env.VITE_WS_SERVER_URL;
+      
+      if (!serverUrl) {
+        // Fallback for local development
+        serverUrl = `ws://${window.location.hostname}:3000`;
+      }
+
+      // Auto-upgrade to wss:// if the page is loaded over https://
+      if (window.location.protocol === 'https:' && serverUrl.startsWith('ws://')) {
+        serverUrl = serverUrl.replace('ws://', 'wss://');
+      }
+
       this.ws = new WebSocket(serverUrl);
 
       this.ws.onopen = () => {
