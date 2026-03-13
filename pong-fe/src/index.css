@@ -12,7 +12,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
+    min-height: 100dvh;
     font-family: 'VT323', monospace;
   }
 }
@@ -34,13 +34,13 @@
   --game-ratio-w: 2;
   --game-ratio-h: 3;
   aspect-ratio: var(--game-ratio-w) / var(--game-ratio-h);
-  
+
   width: 100%;
   height: 100%;
-  
+
   max-width: min(100vw, 100dvh * (var(--game-ratio-w) / var(--game-ratio-h)));
   max-height: min(100dvh, 100vw * (var(--game-ratio-h) / var(--game-ratio-w)));
-  
+
   position: relative;
   background-color: transparent;
   border: 4px solid #fff;
@@ -52,6 +52,7 @@
 @media (max-width: 767px) {
   .game-container {
     --game-ratio-w: 4;
-    --game-ratio-h: 7; /* 6 for arena + 1 for buttons (maintains 2/3 ratio for arena) */
+    --game-ratio-h: 7;
+    /* 6 for arena + 1 for buttons (maintains 2/3 ratio for arena) */
   }
 }
