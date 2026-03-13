@@ -229,7 +229,7 @@ export class GameEngine {
     // --- Arkanoid pad-position angle ---
     const hitOffset = ball.position.x - player.position.x;
     const normalizedIntersect = hitOffset / (PAD_WIDTH / 2); // -1.0 to 1.0
-    const padAngle = normalizedIntersect * (Math.PI / 4); // -45° to +45°
+    const padAngle = normalizedIntersect * ((Math.PI * 75) / 180); // -75° to +75°
 
     // --- Blend both angles ---
     let bounceAngle = physicsAngle * (1 - BOUNCE_BLEND_FACTOR) + padAngle * BOUNCE_BLEND_FACTOR;
@@ -242,7 +242,7 @@ export class GameEngine {
     }
 
     // Clamp final angle to prevent extreme horizontal shots
-    const maxAngle = Math.PI / 4; // ±45°
+    const maxAngle = (Math.PI * 75) / 180; // ±75°
     bounceAngle = Math.max(-maxAngle, Math.min(maxAngle, bounceAngle));
 
     // dirY = -1 → bounce UP, dirY = 1 → bounce DOWN

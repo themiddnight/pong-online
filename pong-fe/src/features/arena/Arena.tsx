@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   PlayerRole, GamePhase, WebSocketEvents,
   ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, BALL_SIZE
@@ -15,14 +15,7 @@ export function Arena({ role }: ArenaProps) {
   const stateRef = useRef<GameState | null>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
 
-  // Throttle ref for limiting PAD_MOVE sends (~30fps)
-  const lastSendTimeRef = useRef(0);
-
-  // Touch tracking refs
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const touchMovedRef = useRef(false);
-  const TAP_MOVE_THRESHOLD = 10;
-
+  const movementRef = useRef<'LEFT' | 'RIGHT' | 'STOP'>('STOP');
   const [renderState, setRenderState] = useState<GameState | null>(null);
 
   // Ball display position & transition (for two-phase bounce animation)
@@ -75,89 +68,71 @@ export function Arena({ role }: ArenaProps) {
     };
   }, []);
 
-  // Convert screen X pixel to logical X, handling JOINER inversion
-  const screenXToLogical = useCallback((clientX: number): number => {
-    const arena = arenaRef.current;
-    if (!arena) return ARENA_WIDTH / 2;
+  // Sync Input Loop (Independent 30fps sync to server)
+  useEffect(() => {
+    const syncInterval = setInterval(() => {
+      if (movementRef.current !== 'STOP' && stateRef.current) {
+        // Calculate optimistic local x
+        const player = stateRef.current.players[role];
+        if (player) {
+          const speed = 600; // units per sec
+          const dt = 1 / 30; // 30 ticks per sec
 
-    const rect = arena.getBoundingClientRect();
-    const relativeX = clientX - rect.left;
-    const ratioX = relativeX / rect.width;
+          let moveDir = 0;
+          if (movementRef.current === 'RIGHT') moveDir = 1;
+          else if (movementRef.current === 'LEFT') moveDir = -1;
 
-    let logicalX = ratioX * ARENA_WIDTH;
+          // If we are JOINER our screen is inverted (left is logical right), so reverse input math
+          const adjustedDir = role === PlayerRole.JOINER ? -moveDir : moveDir;
 
-    if (role === PlayerRole.JOINER) {
-      logicalX = ARENA_WIDTH - logicalX;
-    }
+          let nextX = player.position.x + (speed * dt * adjustedDir);
+          nextX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, nextX));
 
-    logicalX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, logicalX));
-    return logicalX;
+          wsClient.send(WebSocketEvents.PAD_MOVE, { direction: 'SYNC', x: nextX });
+        }
+      }
+    }, 1000 / 30);
+    return () => clearInterval(syncInterval);
   }, [role]);
 
-  // Send pad position with throttling (~30fps)
-  const sendPadPosition = useCallback((logicalX: number) => {
-    const now = Date.now();
-    if (now - lastSendTimeRef.current < 33) return;
-    lastSendTimeRef.current = now;
-    wsClient.send(WebSocketEvents.PAD_MOVE, { direction: 'SYNC', x: logicalX });
+  // Keyboard controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') movementRef.current = 'LEFT';
+      if (e.key === 'ArrowRight') movementRef.current = 'RIGHT';
+      if (e.code === 'Space') {
+        const phase = stateRef.current?.phase;
+        if (phase === GamePhase.SERVING) {
+          wsClient.send(WebSocketEvents.ACTION_SERVE);
+        } else if (phase === GamePhase.PLAYING) {
+          wsClient.send(WebSocketEvents.ACTION_POWER_HIT);
+        }
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' && movementRef.current === 'LEFT') movementRef.current = 'STOP';
+      if (e.key === 'ArrowRight' && movementRef.current === 'RIGHT') movementRef.current = 'STOP';
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
-  // Fire action (serve or power hit)
-  const fireAction = useCallback(() => {
+  // Mobile Handlers
+  const handleMobileMoveStart = (dir: 'LEFT' | 'RIGHT') => { movementRef.current = dir; };
+  const handleMobileMoveEnd = () => { movementRef.current = 'STOP'; };
+  const handleAction = () => {
     const phase = stateRef.current?.phase;
     if (phase === GamePhase.SERVING) {
       wsClient.send(WebSocketEvents.ACTION_SERVE);
     } else if (phase === GamePhase.PLAYING) {
       wsClient.send(WebSocketEvents.ACTION_POWER_HIT);
     }
-  }, []);
-
-  // --- React Event Handlers ---
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const logicalX = screenXToLogical(e.clientX);
-    sendPadPosition(logicalX);
-  }, [screenXToLogical, sendPadPosition]);
-
-  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    fireAction();
-  }, [fireAction]);
-
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-    touchMovedRef.current = false;
-
-    const logicalX = screenXToLogical(touch.clientX);
-    sendPadPosition(logicalX);
-  }, [screenXToLogical, sendPadPosition]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    const touch = e.touches[0];
-    if (!touch) return;
-
-    if (touchStartRef.current) {
-      const dx = Math.abs(touch.clientX - touchStartRef.current.x);
-      const dy = Math.abs(touch.clientY - touchStartRef.current.y);
-      if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) {
-        touchMovedRef.current = true;
-      }
-    }
-
-    const logicalX = screenXToLogical(touch.clientX);
-    sendPadPosition(logicalX);
-  }, [screenXToLogical, sendPadPosition]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!touchMovedRef.current) {
-      fireAction();
-    }
-    touchStartRef.current = null;
-    touchMovedRef.current = false;
-  }, [fireAction]);
+  };
 
   if (!renderState) {
     return (
@@ -187,16 +162,12 @@ export function Arena({ role }: ArenaProps) {
   const ballTransition = ballDisplay?.transition ?? 'left 33ms linear, top 33ms linear';
 
   return (
-    <div
-      ref={arenaRef}
-      className="w-full h-full relative overflow-hidden bg-black pixel-art select-none cursor-none"
-      style={{ touchAction: 'none' }}
-      onMouseMove={handleMouseMove}
-      onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <>
+      <div
+        ref={arenaRef}
+        className="w-full relative overflow-hidden bg-black pixel-art select-none cursor-none"
+        style={{ touchAction: 'none', flex: 6 }}
+      >
 
       {/* Background Center Line */}
       <div className="absolute w-full h-1 bg-white/20 top-1/2 -translate-y-1/2 pointer-events-none"></div>
@@ -264,11 +235,43 @@ export function Arena({ role }: ArenaProps) {
 
       {/* Serving indicator */}
       {renderState.phase === GamePhase.SERVING && renderState.serverTurn === role && (
-        <div className="absolute bottom-[15%] left-1/2 -translate-x-1/2 pointer-events-none">
-          <p className="text-lg text-white/60 animate-pulse">Click / Tap to Serve</p>
+        <div className="absolute bottom-[20%] left-1/2 -translate-x-1/2 pointer-events-none">
+          <p className="text-lg text-white/60 animate-pulse text-center">Press Space / Action to Serve</p>
         </div>
       )}
 
     </div>
+    
+      {/* Mobile Virtual Buttons */}
+      <div 
+        className="w-full p-2 flex justify-between gap-2 z-30 pointer-events-auto md:hidden bg-black border-t-4 border-white"
+        style={{ flex: 1 }}
+      >
+        <button
+          className="flex-1 h-full bg-white/20 border-2 border-white rounded-lg text-4xl text-white active:bg-white/50 touch-manipulation select-none transition-colors"
+          onTouchStart={() => handleMobileMoveStart('LEFT')}
+          onTouchEnd={handleMobileMoveEnd}
+          onContextMenu={e => e.preventDefault()}
+        >
+          &lt;
+        </button>
+        <button
+          className="flex-1 h-full bg-white/20 border-2 border-white rounded-lg text-3xl text-white active:bg-white/50 touch-manipulation select-none font-bold transition-colors"
+          onTouchStart={handleAction}
+          onContextMenu={e => e.preventDefault()}
+        >
+          ACT
+        </button>
+        <button
+          className="flex-1 h-full bg-white/20 border-2 border-white rounded-lg text-4xl text-white active:bg-white/50 touch-manipulation select-none transition-colors"
+          onTouchStart={() => handleMobileMoveStart('RIGHT')}
+          onTouchEnd={handleMobileMoveEnd}
+          onContextMenu={e => e.preventDefault()}
+        >
+          &gt;
+        </button>
+      </div>
+
+    </>
   );
 }
