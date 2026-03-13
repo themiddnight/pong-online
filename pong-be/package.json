@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "start": "bun run index.ts",
-    "dev": "bun run --watch index.ts"
+    "dev": "bun run --watch index.ts",
+    "build": "echo 'No build needed for Bun-based backend'"
   },
   "devDependencies": {
     "@types/bun": "latest",
