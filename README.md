@@ -30,6 +30,7 @@
 - 📙 [**engine_standards.md**](./docs/engine_standards.md): เอกสารเปรียบเทียบมาตรฐาน Game Engine (TCP vs UDP) และ 3 เทคนิคหลักที่เกมระดับสากลใช้ (Interpolation, Prediction และ Lag Compensation) สำหรับการต่อยอดโปรเจกต์
 - 📓 [**rule_and_constrain.md**](./docs/rule_and_constrain.md): ข้อกำหนดและกติกาของตัวเกมทั้งหมด สำหรับการพอร์ตระบบเกม Atari สู่แพลตฟอร์มออนไลน์
 - ⚛️ [**physics_explanation.md**](./docs/physics_explanation.md): เจาะลึกระบบฟิสิกส์ การคำนวณการชน (CCD) และการผสมผสานมุมสะท้อนแบบสมจริง (Bounce Blending) สำหรับคนไม่มีพื้นฐาน
+- 🚀 [**deployment_guide.md**](./docs/deployment_guide.md): คู่มือการ Deploy ระบบขึ้น Production (Vercel & Railway)
 
 ---
 
