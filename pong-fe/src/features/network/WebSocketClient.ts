@@ -16,7 +16,8 @@ class WebSocketClient {
 
     this.connectionPromise = new Promise((resolve, reject) => {
       // Connect to the same machine but port 3000
-      this.ws = new WebSocket(`ws://${window.location.hostname}:3000`);
+      const serverUrl = import.meta.env.VITE_WS_SERVER_URL || `ws://${window.location.hostname}:3000`;
+      this.ws = new WebSocket(serverUrl);
 
       this.ws.onopen = () => {
         this.isConnected = true;
