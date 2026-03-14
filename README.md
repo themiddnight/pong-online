@@ -26,6 +26,7 @@
 
 สำหรับนักพัฒนาที่ต้องการศึกษา Real-Time Netcode หรือทำความเข้าใจ Logic ของเกม สามารถอ้างอิงจากเอกสารต่อไปนี้:
 
+- 🎮 [**multiplayer_guide.md**](./docs/multiplayer_guide.md): คู่มือทำความเข้าใจระบบ Backend (Multiplayer Game) แบบง่ายๆ พร้อมภาพอธิบาย (สำหรับผู้เริ่มต้น)
 - 📘 [**tech_architecture.md**](./docs/tech_architecture.md): เอกสารสรุปสถาปัตยกรรมระบบ, Game Phases Loop, และแผนภาพ Flow การทำงานของ WebSockets
 - 📙 [**engine_standards.md**](./docs/engine_standards.md): เอกสารเปรียบเทียบมาตรฐาน Game Engine (TCP vs UDP) และ 3 เทคนิคหลักที่เกมระดับสากลใช้ (Interpolation, Prediction และ Lag Compensation) สำหรับการต่อยอดโปรเจกต์
 - 📓 [**rule_and_constrain.md**](./docs/rule_and_constrain.md): ข้อกำหนดและกติกาของตัวเกมทั้งหมด สำหรับการพอร์ตระบบเกม Atari สู่แพลตฟอร์มออนไลน์

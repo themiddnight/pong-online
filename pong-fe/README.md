@@ -10,6 +10,8 @@ This is the React client for the Pong 1v1 online multiplayer game.
 - **Interpolation Loop**: Uses client state syncing `stateRef` mapped to `renderState` alongside rapid DOM manipulation to transition 30fps inputs smoothly to display at standard framerates natively.
 - **Responsive Controls**: Mouse, Keyboard (L/R arrows & Spacebar to Serve), and Touchscreen virtual buttons are perfectly scaled within the logical coordinates setup.
 
+📖 **[อ่านคู่มือและเอกสารการทำงานเชิงลึกของโปรเจกต์ได้ที่โฟลเดอร์ docs หลัก](../docs/)**
+
 ## Running
 
 1. Install dependencies at the workspace root using `bun install`.

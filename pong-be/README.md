@@ -9,6 +9,8 @@ This is the Express & Native WebSocket Server for Pong!
 - **WebSocket Native Server**: Binds to the `httpServer` to run pure bi-directional JSON logic alongside standard HTTP requests perfectly on port 3000.
 - **Feature Structure**: Contains two main directories: `matchmaking` (rooms & UUID generation) and `game` (The true 30 FPS physics engine containing the single-source-of-truth).
 
+📖 **[อ่านคู่มือการทำงานของระบบ Multiplayer ฉบับผู้เริ่มต้นได้ที่นี่](../docs/multiplayer_guide.md)**
+
 ## Connection Lifecycle
 1. Connect via UUID
 2. Emit `JOIN_ROOM` or `CREATE_ROOM`
