@@ -15,7 +15,7 @@
    เป็นคลังข้อมูลกลางที่จัดเก็บกฎของตัวเกม, อัตราเฟรม, ความเร็วบอล รวมถึง `TypeScript Types` ที่ Frontend และ Backend ใช้ร่วมกัน เพื่อป้องกันความไม่สอดคล้องของชนิดข้อมูล
 
 2. **🤖 `pong-be/`** (Backend - The Authoritative Server)
-   เซิร์ฟเวอร์ทำงานบน **Express Server + Native WebSockets** รับผิดชอบการรัน Game Loop ฟิสิกส์ที่อัปเดตสถานะ 30 FPS, การจับคู่ห้องผ่าน UUID และการตรวจสอบกติกาเพื่อป้องกันการทุจริต (เช่น ตำแหน่ง Pad หรือการกด Power Hit)
+   เซิร์ฟเวอร์ทำงานบน **Express Server + Native WebSockets** รับผิดชอบการรัน Game Loop ฟิสิกส์ที่อัปเดตสถานะ 60 FPS, การจับคู่ห้องผ่าน UUID และการตรวจสอบกติกาเพื่อป้องกันการทุจริต (เช่น ตำแหน่ง Pad หรือการกด Power Hit)
 
 3. **🎨 `pong-fe/`** (Frontend - The Dumb Client)
    ส่วนแสดงผลฝั่งผู้เล่น เขียนด้วย **React 19 + Vite** และ Styled ด้วย **TailwindCSS v4** แสดงผลกราฟิกที่ลื่นไหล 60 FPS ผ่านระบบ `Client-side Interpolation / Prediction` เพื่อให้ผู้เล่นได้รับการตอบสนองทันทีโดยไม่ขึ้นอยู่กับค่า Ping

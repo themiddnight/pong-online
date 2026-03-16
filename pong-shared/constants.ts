@@ -1,4 +1,4 @@
-export const GAME_FPS = 30;
+export const GAME_FPS = 60;
 export const INTERPOLATION_FPS = 60;
 export const TICK_RATE = 1000 / GAME_FPS;
 

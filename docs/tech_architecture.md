@@ -26,7 +26,7 @@ graph TD
     subgraph Server ["Backend (Bun/Node.js)"]
         WS_Server["Native WebSocket Server"]
         RoomMgr["Room Manager (UUID Matchmaking)"]
-        Engine["Game Engine (30FPS Loop)"]
+        Engine["Game Engine (60FPS Loop)"]
     end
 
     Input -->|"ส่งคำสั่ง (ซ้าย/ขวา/เสิร์ฟ)"| WS_Client
@@ -44,7 +44,7 @@ graph TD
 
 องค์ประกอบสำคัญของเกม Real-time คือกรอบเวลา (Tick Rate) ระบบนี้ออกแบบด้วยแนวคิดกึ่ง Real-time เพื่อจัดสมดุลระหว่างประสิทธิภาพและทรัพยากร:
 
-- **Server Tick Rate (30 FPS)**: `GameEngine.ts` ประมวลผลตำแหน่งลูกบอลและ Pad ทุก `33.33ms`
+- **Server Tick Rate (60 FPS)**: `GameEngine.ts` ประมวลผลตำแหน่งลูกบอลและ Pad ทุก `16.66ms`
 - **Client Frame Rate (60 FPS ขึ้นไป)**: เบราว์เซอร์ใช้อัตราเฟรมตามความสามารถของหน้าจอ (ผ่าน `requestAnimationFrame` หรือ React State Updates) เพื่ออัปเดตกราฟิกอย่างลื่นไหล
 
 ---
@@ -79,7 +79,7 @@ sequenceDiagram
     Player1->>Server: ACTION_SERVE
     Note over Server: เซิร์ฟเวอร์คำนวณความเร็วบอลเริ่มต้น
 
-    loop 30 Times/Sec
+    loop 60 Times/Sec
         Note over Player1,Server: Phase: PLAYING
         Player1->>Server: PAD_MOVE x, direction
         Player2->>Server: PAD_MOVE x, direction
@@ -103,9 +103,10 @@ sequenceDiagram
   - *ปัญหา*: Player 2 (Joiner) จะมองตัวละครของตนอยู่ด้านบน และปุ่มซ้าย-ขวาสลับทิศกัน
   - *วิธีแก้ไข*: เซิร์ฟเวอร์คำนวณพิกัดตามแนวแกนปกติ แต่ฝั่ง React (`Arena.tsx`) ของ Joiner จะแปลงพิกัดด้วยการคูณ `-1` หรือ `MAX_HEIGHT - y` เพื่อกลับทิศแสดงผล ทำให้ผู้เล่นทั้งสองฝ่ายรับรู้ว่าตนเองอยู่ "ด้านล่างของสนาม" เสมอ โดยไม่เพิ่มความซับซ้อนในโค้ดเซิร์ฟเวอร์
 
-- **Optimistic UI Constraints**
+- **Optimistic UI Constraints (Client-Side Prediction)**
 
-  เมื่อผู้เล่นกดเลื่อน Pad Client จะขยับ Pad ในหน้าจอทันที (Optimistic Update) โดยไม่รอการยืนยันจากเซิร์ฟเวอร์ เพื่อให้การตอบสนองลื่นไหลและไม่มีความล่าช้า อย่างไรก็ตาม Client ต้องคำนวณขอบเขตสนาม (Clamp Bounds) ให้ตรงกับเซิร์ฟเวอร์ เพื่อป้องกันไม่ให้ Pad เคลื่อนที่เกินขอบสนาม
+  เพื่อให้เกมไม่รู้สึกสะดุด (Input Lag) จาก Network Ping เมื่อผู้เล่นกดปุ่มเลื่อน Pad, Client จะจดจำและคำนวณตำแหน่ง X ของ Pad ด้วยตัวเองแยกอิสระจาก Server ทันที (Local State Prediction) 
+  และปิด CSS Transition ชั่วคราวเพื่อให้ Pad ขยับตามนิ้วหรือปุ่มแบบ 100% เรียลไทม์ (0ms Latency) ในขณะเดียวกันก็ส่งพิกัดไปให้ Server รับทราบ เมื่อผู้เล่นปล่อยปุ่ม ระบบจึงจะสลับกลับไปรับค่าจาก Server เพื่อทำการ Sync ให้ถูกต้องตรงกันอีกครั้ง
 
 - **Power Hit Geometry & Bounce Blending (คณิตศาสตร์ของการเด้ง)**
 

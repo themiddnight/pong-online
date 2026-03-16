@@ -16,6 +16,8 @@ export function Arena({ role }: ArenaProps) {
   const arenaRef = useRef<HTMLDivElement>(null);
 
   const movementRef = useRef<'LEFT' | 'RIGHT' | 'STOP'>('STOP');
+  const localPadXRef = useRef<number | null>(null);
+  const [localX, setLocalX] = useState<number | null>(null);
   const [renderState, setRenderState] = useState<GameState | null>(null);
 
   // Ball display position & transition (for two-phase bounce animation)
@@ -40,7 +42,7 @@ export function Arena({ role }: ArenaProps) {
           bounceRafRef.current = requestAnimationFrame(() => {
             setBallDisplay({
               pos: ball.position,
-              transition: 'left 33ms linear, top 33ms linear',
+              transition: 'left 16ms linear, top 16ms linear',
             });
             bounceRafRef.current = null;
           });
@@ -48,7 +50,7 @@ export function Arena({ role }: ArenaProps) {
       } else {
         setBallDisplay({
           pos: ball.position,
-          transition: 'left 33ms linear, top 33ms linear',
+          transition: 'left 16ms linear, top 16ms linear',
         });
       }
     };
@@ -68,15 +70,16 @@ export function Arena({ role }: ArenaProps) {
     };
   }, []);
 
-  // Sync Input Loop (Independent 30fps sync to server)
+  // Sync Input Loop (Independent 60fps sync to server)
   useEffect(() => {
     const syncInterval = setInterval(() => {
       if (movementRef.current !== 'STOP' && stateRef.current) {
-        // Calculate optimistic local x
+        // Calculate optimistic local x based on our OWN local state, not the server's delayed state
         const player = stateRef.current.players[role];
         if (player) {
+          const currentX = localPadXRef.current !== null ? localPadXRef.current : player.position.x;
           const speed = 600; // units per sec
-          const dt = 1 / 30; // 30 ticks per sec
+          const dt = 1 / 60; // 60 ticks per sec
 
           let moveDir = 0;
           if (movementRef.current === 'RIGHT') moveDir = 1;
@@ -85,13 +88,20 @@ export function Arena({ role }: ArenaProps) {
           // If we are JOINER our screen is inverted (left is logical right), so reverse input math
           const adjustedDir = role === PlayerRole.JOINER ? -moveDir : moveDir;
 
-          let nextX = player.position.x + (speed * dt * adjustedDir);
+          let nextX = currentX + (speed * dt * adjustedDir);
           nextX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, nextX));
+
+          localPadXRef.current = nextX;
+          setLocalX(nextX);
 
           wsClient.send(WebSocketEvents.PAD_MOVE, { direction: 'SYNC', x: nextX });
         }
+      } else if (localPadXRef.current !== null) {
+        // When stopped, release local control and fallback to server state to resync
+        localPadXRef.current = null;
+        setLocalX(null);
       }
-    }, 1000 / 30);
+    }, 1000 / 60);
     return () => clearInterval(syncInterval);
   }, [role]);
 
@@ -159,7 +169,7 @@ export function Arena({ role }: ArenaProps) {
 
   // Use ballDisplay for ball rendering (handles bounce animation), fallback to ball.position
   const ballPos = ballDisplay?.pos ?? ball.position;
-  const ballTransition = ballDisplay?.transition ?? 'left 33ms linear, top 33ms linear';
+  const ballTransition = ballDisplay?.transition ?? 'left 16ms linear, top 16ms linear';
 
   return (
     <>
@@ -185,12 +195,12 @@ export function Arena({ role }: ArenaProps) {
         <div
           className="absolute bg-white pointer-events-none"
           style={{
-            left: toX(getRenderX(me.position.x)),
+            left: toX(getRenderX(localX !== null ? localX : me.position.x)),
             top: toY(getRenderY(me.position.y)),
             width: widthPct(PAD_WIDTH),
             height: heightPct(PAD_HEIGHT),
             transform: 'translate(-50%, -50%)',
-            transition: 'left 33ms linear, top 33ms linear',
+            transition: localX !== null ? 'none' : 'left 16ms linear, top 16ms linear',
           }}
         />
       )}
@@ -203,7 +213,7 @@ export function Arena({ role }: ArenaProps) {
             width: widthPct(PAD_WIDTH),
             height: heightPct(PAD_HEIGHT),
             transform: 'translate(-50%, -50%)',
-            transition: 'left 33ms linear, top 33ms linear',
+            transition: 'left 16ms linear, top 16ms linear',
           }}
         />
       )}

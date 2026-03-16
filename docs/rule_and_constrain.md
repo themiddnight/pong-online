@@ -5,7 +5,7 @@
 - **สัดส่วนหน้าจอ**: แนวตั้ง (Vertical) อัตราส่วน 2:3 โดย Container ปรับขนาดให้พอดีกับหน้าจอ (Responsive Fit) ในทุกอุปกรณ์
 - **ธีมกราฟิก**: สีดำ-ขาว (Black Background, White Elements) ในสไตล์ Pixel 8-bit (ใช้ Pixel font และลูกบอลทรงสี่เหลี่ยม)
 - **แพลตฟอร์ม**: รองรับการเล่นผ่าน Web Browser ทั้งบน PC และอุปกรณ์ Mobile
-- **Frame Rate & Interpolation**: Backend ประมวลผลและส่งข้อมูลสถานะที่ความถี่ 30 FPS จากนั้น Frontend ดำเนิน Client-Side Prediction (Interpolation) เพื่อให้การแสดงผลลื่นไหลในระดับเสมือน 60 FPS
+- **Frame Rate & Interpolation**: Backend ประมวลผลและส่งข้อมูลสถานะที่ความถี่ 60 FPS จากนั้น Frontend ดำเนิน Client-Side Prediction (Interpolation) เพื่อให้การแสดงผลลื่นไหลในระดับ 60 FPS หรือมากกว่า
 
 ## 2. ระบบห้องและการจับคู่ (Room & Matchmaking)
 - **สถานะผู้เล่น**:
@@ -39,12 +39,11 @@
   - Power Hit มีผลเฉพาะ *การกระทบครั้งแรก* เท่านั้น ความเร็วพิเศษจะคงอยู่จนกว่าลูกบอลจะกระทบ Pad ของฝ่ายตรงข้าม หากฝ่ายตรงข้ามรับลูกได้โดยไม่ได้กด Power Hit สวนกลับ ความเร็วบอลจะกลับสู่ **Speed ×1** ทันที
 
 ## 5. การควบคุม (Controls)
-- **PC (Mouse)**:
-  - เลื่อนเมาส์ซ้าย-ขวาภายในสนาม: ควบคุมตำแหน่ง Pad ให้ตามตำแหน่งเมาส์
-  - คลิกเมาส์: เสิร์ฟลูก (ขณะ Serving) / สั่งการ Power Hit (ขณะ Playing)
+- **PC (Keyboard / Mobile Buttons)**:
+  - กดปุ่มลูกศรซ้าย-ขวา (`ArrowLeft`, `ArrowRight`): ควบคุมตำแหน่ง Pad ให้เคลื่อนที่ไปทางซ้ายหรือขวา
+  - กด Spacebar: เสิร์ฟลูก (ขณะ Serving) / สั่งการ Power Hit (ขณะ Playing)
 - **อุปกรณ์สัมผัส (Touch)**:
-  - ลากนิ้ว (Drag/Swipe) ซ้าย-ขวาภายในสนาม: ควบคุมตำแหน่ง Pad ให้ตามตำแหน่งนิ้ว
-  - แตะ (Tap): เสิร์ฟลูก (ขณะ Serving) / สั่งการ Power Hit (ขณะ Playing)
+  - ใช้ปุ่มจำลองบนหน้าจอ (Virtual Buttons) `<`, `>`, และ `ACT`: ควบคุมการเคลื่อนที่และสั่งการ Power Hit/Serve
 
 ## 6. ข้อกำหนดทางเทคนิคและสถาปัตยกรรม (System & Architecture)
 - **เทคโนโลยีที่ใช้ (Stack)**:
