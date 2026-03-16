@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import {
-  PlayerRole, GamePhase, WebSocketEvents,
+  PlayerRole, GamePhase, WebSocketEvents, PAD_SPEED,
   ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, BALL_SIZE
 } from 'pong-shared';
-import type { GameState, Vector2 } from 'pong-shared';
+import type { GameState, Vector2, PlayerInput, ActionInput, GameStateUpdate } from 'pong-shared';
 import { wsClient } from '../network/WebSocketClient';
 
 interface ArenaProps {
@@ -20,15 +20,63 @@ export function Arena({ role }: ArenaProps) {
   const [localX, setLocalX] = useState<number | null>(null);
   const [renderState, setRenderState] = useState<GameState | null>(null);
 
+  // Professional Netcode: Sequence tracking and pending inputs
+  const inputSeqRef = useRef<number>(0);
+  const pendingInputsRef = useRef<Map<number, PlayerInput>>(new Map());
+  const lastProcessedSeqRef = useRef<number>(0);
+
   // Ball display position & transition (for two-phase bounce animation)
   const [ballDisplay, setBallDisplay] = useState<{ pos: Vector2; transition: string } | null>(null);
   const bounceRafRef = useRef<number | null>(null);
 
   // Connection listeners
   useEffect(() => {
-    const handleStateUpdate = (payload: { state: GameState; timestamp: number }) => {
+    const handleStateUpdate = (payload: GameStateUpdate) => {
       stateRef.current = payload.state;
       setRenderState(payload.state);
+
+      // Professional Netcode: Server Reconciliation
+      const myLastProcessed = payload.lastProcessedInput[role];
+      if (myLastProcessed > lastProcessedSeqRef.current) {
+        lastProcessedSeqRef.current = myLastProcessed;
+
+        // Remove processed inputs
+        for (const [seq] of pendingInputsRef.current) {
+          if (seq <= myLastProcessed) {
+            pendingInputsRef.current.delete(seq);
+          }
+        }
+
+        // Check if prediction was correct
+        const serverX = payload.state.players[role]?.position.x;
+        const predictedX = localPadXRef.current;
+
+        if (serverX !== undefined && predictedX !== null && Math.abs(serverX - predictedX) > 1) {
+          // Prediction mismatch - Snap to server position
+          console.warn(`[Reconciliation] Predicted=${predictedX.toFixed(2)}, Server=${serverX.toFixed(2)}, Diff=${Math.abs(serverX - predictedX).toFixed(2)}`);
+          
+          // Start from server position
+          let correctedX = serverX;
+
+          // Re-apply pending inputs
+          const sortedInputs = Array.from(pendingInputsRef.current.entries())
+            .sort((a, b) => a[0] - b[0]);
+          
+          for (const [_, input] of sortedInputs) {
+            const dt = 1 / 60;
+            let moveDir = 0;
+            if (input.movement === 'LEFT') moveDir = -1;
+            else if (input.movement === 'RIGHT') moveDir = 1;
+            const adjustedDir = role === PlayerRole.JOINER ? -moveDir : moveDir;
+            
+            correctedX += PAD_SPEED * dt * adjustedDir;
+            correctedX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, correctedX));
+          }
+
+          localPadXRef.current = correctedX;
+          setLocalX(correctedX);
+        }
+      }
 
       const ball = payload.state.ball;
       if (ball.bounceContact) {
@@ -70,34 +118,50 @@ export function Arena({ role }: ArenaProps) {
     };
   }, []);
 
-  // Sync Input Loop (Independent 60fps sync to server)
+  // Professional Netcode: Input Loop (60fps)
   useEffect(() => {
     const syncInterval = setInterval(() => {
       if (movementRef.current !== 'STOP' && stateRef.current) {
-        // Calculate optimistic local x based on our OWN local state, not the server's delayed state
         const player = stateRef.current.players[role];
         if (player) {
+          // Create input
+          const input: PlayerInput = {
+            sequenceNumber: ++inputSeqRef.current,
+            timestamp: Date.now(),
+            movement: movementRef.current
+          };
+
+          // Send to server
+          wsClient.send(WebSocketEvents.PLAYER_INPUT, input);
+
+          // Client-Side Prediction
           const currentX = localPadXRef.current !== null ? localPadXRef.current : player.position.x;
-          const speed = 600; // units per sec
-          const dt = 1 / 60; // 60 ticks per sec
-
+          const dt = 1 / 60;
           let moveDir = 0;
-          if (movementRef.current === 'RIGHT') moveDir = 1;
-          else if (movementRef.current === 'LEFT') moveDir = -1;
-
-          // If we are JOINER our screen is inverted (left is logical right), so reverse input math
+          if (input.movement === 'LEFT') moveDir = -1;
+          else if (input.movement === 'RIGHT') moveDir = 1;
           const adjustedDir = role === PlayerRole.JOINER ? -moveDir : moveDir;
 
-          let nextX = currentX + (speed * dt * adjustedDir);
+          let nextX = currentX + (PAD_SPEED * dt * adjustedDir);
           nextX = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, nextX));
 
           localPadXRef.current = nextX;
           setLocalX(nextX);
 
-          wsClient.send(WebSocketEvents.PAD_MOVE, { direction: 'SYNC', x: nextX });
+          // Store for reconciliation
+          pendingInputsRef.current.set(input.sequenceNumber, input);
         }
       } else if (localPadXRef.current !== null) {
-        // When stopped, release local control and fallback to server state to resync
+        // Send STOP input
+        const input: PlayerInput = {
+          sequenceNumber: ++inputSeqRef.current,
+          timestamp: Date.now(),
+          movement: 'STOP'
+        };
+        wsClient.send(WebSocketEvents.PLAYER_INPUT, input);
+        pendingInputsRef.current.set(input.sequenceNumber, input);
+
+        // Release local control and fallback to server state
         localPadXRef.current = null;
         setLocalX(null);
       }
@@ -112,11 +176,15 @@ export function Arena({ role }: ArenaProps) {
       if (e.key === 'ArrowRight') movementRef.current = 'RIGHT';
       if (e.code === 'Space') {
         const phase = stateRef.current?.phase;
-        if (phase === GamePhase.SERVING) {
-          wsClient.send(WebSocketEvents.ACTION_SERVE);
-        } else if (phase === GamePhase.PLAYING) {
-          wsClient.send(WebSocketEvents.ACTION_POWER_HIT);
-        }
+        const action = phase === GamePhase.SERVING ? 'SERVE' : 'POWER_HIT';
+        
+        const input: ActionInput = {
+          sequenceNumber: ++inputSeqRef.current,
+          timestamp: Date.now(),
+          action: action
+        };
+        
+        wsClient.send(WebSocketEvents.ACTION_INPUT, input);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -137,11 +205,15 @@ export function Arena({ role }: ArenaProps) {
   const handleMobileMoveEnd = () => { movementRef.current = 'STOP'; };
   const handleAction = () => {
     const phase = stateRef.current?.phase;
-    if (phase === GamePhase.SERVING) {
-      wsClient.send(WebSocketEvents.ACTION_SERVE);
-    } else if (phase === GamePhase.PLAYING) {
-      wsClient.send(WebSocketEvents.ACTION_POWER_HIT);
-    }
+    const action = phase === GamePhase.SERVING ? 'SERVE' : 'POWER_HIT';
+    
+    const input: ActionInput = {
+      sequenceNumber: ++inputSeqRef.current,
+      timestamp: Date.now(),
+      action: action
+    };
+    
+    wsClient.send(WebSocketEvents.ACTION_INPUT, input);
   };
 
   if (!renderState) {
@@ -167,9 +239,19 @@ export function Arena({ role }: ArenaProps) {
   const getRenderY = (y: number) => isInverted ? ARENA_HEIGHT - y : y;
   const getRenderX = (x: number) => isInverted ? ARENA_WIDTH - x : x;
 
-  // Use ballDisplay for ball rendering (handles bounce animation), fallback to ball.position
-  const ballPos = ballDisplay?.pos ?? ball.position;
-  const ballTransition = ballDisplay?.transition ?? 'left 16ms linear, top 16ms linear';
+  // Calculate ball position with local prediction during SERVING phase
+  let ballPos = ballDisplay?.pos ?? ball.position;
+  let ballTransition = ballDisplay?.transition ?? 'left 16ms linear, top 16ms linear';
+  
+  // If we are serving and using local pad prediction, calculate ball position locally to prevent jitter
+  if (renderState.phase === GamePhase.SERVING && renderState.serverTurn === role && localX !== null && me) {
+    const padYOffset = role === PlayerRole.CREATOR ? -(PAD_HEIGHT/2 + BALL_SIZE/2) : (PAD_HEIGHT/2 + BALL_SIZE/2);
+    ballPos = {
+      x: localX,
+      y: me.position.y + padYOffset
+    };
+    ballTransition = 'none'; // No transition during local serving to stick perfectly
+  }
 
   return (
     <>

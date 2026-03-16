@@ -105,8 +105,14 @@ sequenceDiagram
 
 - **Optimistic UI Constraints (Client-Side Prediction)**
 
+  **`main` Branch (Hybrid Approach):**
   เพื่อให้เกมไม่รู้สึกสะดุด (Input Lag) จาก Network Ping เมื่อผู้เล่นกดปุ่มเลื่อน Pad, Client จะจดจำและคำนวณตำแหน่ง X ของ Pad ด้วยตัวเองแยกอิสระจาก Server ทันที (Local State Prediction) 
   และปิด CSS Transition ชั่วคราวเพื่อให้ Pad ขยับตามนิ้วหรือปุ่มแบบ 100% เรียลไทม์ (0ms Latency) ในขณะเดียวกันก็ส่งพิกัดไปให้ Server รับทราบ เมื่อผู้เล่นปล่อยปุ่ม ระบบจึงจะสลับกลับไปรับค่าจาก Server เพื่อทำการ Sync ให้ถูกต้องตรงกันอีกครั้ง
+
+  **`professional-netcode` Branch (Strict Server Authoritative):**
+  ใช้แนวทางเดียวกันในการ Predict ตำแหน่ง Pad ทันที (0ms Latency) แต่แทนที่จะส่งพิกัด X ไปให้ Server จะส่งแค่ **Input** (LEFT/RIGHT/STOP) พร้อม **Sequence Number** แทน จากนั้น Server จะคำนวณตำแหน่งเอง และ Client จะทำ **Server Reconciliation** โดยเปรียบเทียบตำแหน่งที่ Predict กับตำแหน่งจาก Server ถ้าผิดพลาดจะ Snap to Server Position และ Re-apply Pending Inputs
+  
+  📄 **อ่านเพิ่มเติม:** [`docs/netcode_comparison.md`](./netcode_comparison.md)
 
 - **Power Hit Geometry & Bounce Blending (คณิตศาสตร์ของการเด้ง)**
 

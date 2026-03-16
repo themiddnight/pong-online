@@ -1,17 +1,21 @@
 import { Room } from '../matchmaking/Room';
 import { 
   GamePhase, PlayerRole, WebSocketEvents, TICK_RATE, 
-  ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, PAD_OFFSET_Y, 
+  ARENA_WIDTH, ARENA_HEIGHT, PAD_WIDTH, PAD_HEIGHT, PAD_OFFSET_Y, PAD_SPEED,
   BALL_SIZE, BALL_SPEED_START, POWER_HIT_DISTANCE_THRESHOLD, POWER_HIT_MULTIPLIER,
   BOUNCE_BLEND_FACTOR
 } from 'pong-shared';
-import type { Vector2 } from 'pong-shared';
+import type { Vector2, PlayerInput, ActionInput } from 'pong-shared';
 
 export class GameEngine {
   private lastTickTime: number = Date.now();
   private baseBallSpeed: number = BALL_SPEED_START;
+  private lastProcessedInputSeq: Map<PlayerRole, number> = new Map();
   
-  constructor(private room: Room) {}
+  constructor(private room: Room) {
+    this.lastProcessedInputSeq.set(PlayerRole.CREATOR, 0);
+    this.lastProcessedInputSeq.set(PlayerRole.JOINER, 0);
+  }
 
   public start() {
     if (this.room.tickInterval) return;
@@ -26,6 +30,7 @@ export class GameEngine {
     }
   }
 
+  // Deprecated: kept for reference only
   public handlePadMove(role: PlayerRole, data: { direction: 'LEFT' | 'RIGHT' | 'STOP' | 'SYNC', x?: number }) {
     const player = this.room.state.players[role];
     if (!player || this.room.state.phase !== GamePhase.PLAYING && this.room.state.phase !== GamePhase.SERVING) return;
@@ -34,6 +39,52 @@ export class GameEngine {
     if (data.direction === 'SYNC' && data.x !== undefined) {
       // Clamp to arena
       player.position.x = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, data.x));
+    }
+  }
+
+  // Professional Netcode: Process player input (movement)
+  public processPlayerInput(role: PlayerRole, input: PlayerInput) {
+    const player = this.room.state.players[role];
+    if (!player || (this.room.state.phase !== GamePhase.PLAYING && this.room.state.phase !== GamePhase.SERVING)) return;
+
+    // Ignore out-of-order or duplicate packets
+    const lastSeq = this.lastProcessedInputSeq.get(role) || 0;
+    if (input.sequenceNumber <= lastSeq) {
+      console.log(`[GameEngine] Ignoring out-of-order input: seq=${input.sequenceNumber}, lastSeq=${lastSeq}`);
+      return;
+    }
+
+    this.lastProcessedInputSeq.set(role, input.sequenceNumber);
+
+    // Calculate new position based on input
+    const dt = TICK_RATE / 1000; // Use server tick rate for deterministic movement
+    let moveDir = 0;
+    if (input.movement === 'LEFT') moveDir = -1;
+    else if (input.movement === 'RIGHT') moveDir = 1;
+    // STOP = 0 (no movement)
+
+    // Invert direction for Joiner (perspective inversion)
+    const adjustedDir = role === PlayerRole.JOINER ? -moveDir : moveDir;
+
+    player.position.x += PAD_SPEED * dt * adjustedDir;
+    player.position.x = Math.max(PAD_WIDTH / 2, Math.min(ARENA_WIDTH - PAD_WIDTH / 2, player.position.x));
+  }
+
+  // Professional Netcode: Process action input (Serve/Power Hit)
+  public processActionInput(role: PlayerRole, input: ActionInput) {
+    // Ignore out-of-order or duplicate packets
+    const lastSeq = this.lastProcessedInputSeq.get(role) || 0;
+    if (input.sequenceNumber <= lastSeq) {
+      console.log(`[GameEngine] Ignoring out-of-order action: seq=${input.sequenceNumber}, lastSeq=${lastSeq}`);
+      return;
+    }
+
+    this.lastProcessedInputSeq.set(role, input.sequenceNumber);
+
+    if (input.action === 'SERVE') {
+      this.handleServeAction(role);
+    } else if (input.action === 'POWER_HIT') {
+      this.handlePowerHitAction(role);
     }
   }
 
@@ -104,12 +155,16 @@ export class GameEngine {
       }
     }
 
-    // Broadcast state to players
+    // Broadcast state to players with last processed input sequence numbers
     this.room.broadcast({
       event: WebSocketEvents.GAME_STATE_UPDATE,
       data: {
         state: state,
-        timestamp: now
+        timestamp: now,
+        lastProcessedInput: {
+          [PlayerRole.CREATOR]: this.lastProcessedInputSeq.get(PlayerRole.CREATOR) || 0,
+          [PlayerRole.JOINER]: this.lastProcessedInputSeq.get(PlayerRole.JOINER) || 0
+        }
       }
     });
   }

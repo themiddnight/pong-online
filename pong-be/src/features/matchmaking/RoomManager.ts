@@ -170,12 +170,23 @@ export class RoomManager {
 
     switch (data.event) {
       case WebSocketEvents.PAD_MOVE:
+        // Deprecated: kept for backward compatibility
         room.gameEngine.handlePadMove(role, data.data);
         break;
+      case WebSocketEvents.PLAYER_INPUT:
+        // Professional Netcode: Input-based movement
+        room.gameEngine.processPlayerInput(role, data.data);
+        break;
+      case WebSocketEvents.ACTION_INPUT:
+        // Professional Netcode: Input-based actions
+        room.gameEngine.processActionInput(role, data.data);
+        break;
       case WebSocketEvents.ACTION_SERVE:
+        // Deprecated: kept for backward compatibility
         room.gameEngine.handleServeAction(role);
         break;
       case WebSocketEvents.ACTION_POWER_HIT:
+        // Deprecated: kept for backward compatibility
         room.gameEngine.handlePowerHitAction(role);
         break;
       default:

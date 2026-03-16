@@ -98,3 +98,81 @@ sequenceDiagram
    - ดูว่าโครงสร้างข้อมูลใน 1 ห้องเก็บสถานะ (Game State) อะไรไว้บ้าง และมีตัวแปรอะไรบ้าง
 4. จบที่ **`src/features/game/GameEngine.ts`** 
    - (ส่วนนี้ซับซ้อนสุด) เข้าไปดูฟังก์ชัน `tick()` เพื่อดูการคำนวณฟิสิกส์, การสะท้อนของลูกบอล (`resolvePadBounce`), และลอจิกการให้คะแนน (`scorePoint`)
+
+---
+
+## 🎯 Advanced: Input-Based Netcode (Branch: `professional-netcode`)
+
+โปรเจกต์นี้มี Branch พิเศษที่แสดงให้เห็นถึงการ implement **Professional Netcode** แบบ Strict Server Authoritative
+
+### ทำไมต้องส่ง Input แทนพิกัด?
+
+**`main` Branch (Hybrid):**
+```
+Client: คำนวณตำแหน่ง Pad → ส่งพิกัด X → Server ยอมรับ
+```
+- ⚠️ **ปัญหา:** Client อาจส่งพิกัดปลอม (Teleport) เพื่อโกงเกม
+
+**`professional-netcode` Branch (Strict):**
+```
+Client: ส่งแค่ Input (LEFT/RIGHT/STOP) → Server คำนวณตำแหน่งเอง
+```
+- ✅ **ข้อดี:** Client ไม่สามารถโกงได้ เพราะ Server คำนวณทุกอย่าง
+
+### Sequence Number และ Packet Loss Handling
+
+```typescript
+// Client ส่ง Input พร้อม Sequence Number
+const input: PlayerInput = {
+  sequenceNumber: 1,
+  timestamp: Date.now(),
+  movement: 'LEFT'
+};
+
+// Server ตรวจสอบ Sequence Number
+const lastSeq = this.lastProcessedInputSeq.get(role) || 0;
+if (input.sequenceNumber <= lastSeq) {
+  // Packet มาไม่ตามลำดับ หรือ Duplicate → ข้าม
+  return;
+}
+
+// ประมวลผล Input
+this.lastProcessedInputSeq.set(role, input.sequenceNumber);
+player.position.x += PAD_SPEED * dt * moveDir;
+```
+
+### Server Reconciliation
+
+เมื่อ Client ได้รับ State จาก Server:
+
+1. **ตรวจสอบ Prediction:** เปรียบเทียบตำแหน่งที่ Predict กับตำแหน่งจาก Server
+2. **Snap to Server Position:** ถ้าผิดพลาด ให้ Snap ไปตำแหน่งที่ Server บอก
+3. **Re-apply Pending Inputs:** นำ Input ที่ยังไม่ได้ประมวลผลมา Apply ใหม่
+
+```typescript
+if (Math.abs(serverX - predictedX) > 1) {
+  // Prediction ผิด - แก้ไข
+  let correctedX = serverX;
+  
+  // Re-apply Pending Inputs
+  for (const input of pendingInputs) {
+    correctedX += PAD_SPEED * dt * moveDir;
+  }
+  
+  localPadXRef.current = correctedX;
+}
+```
+
+### เมื่อไหร่ควรใช้?
+
+**ใช้ `main` Branch:**
+- Study Project
+- Casual Games
+- ไม่ต้องการป้องกันการโกงมากนัก
+
+**ใช้ `professional-netcode` Branch:**
+- Production Games
+- Competitive Games
+- เกมที่มีเงินเดิมพัน
+
+📄 **อ่านเพิ่มเติม:** [`docs/netcode_comparison.md`](./netcode_comparison.md)

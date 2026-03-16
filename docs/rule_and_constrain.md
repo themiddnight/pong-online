@@ -6,6 +6,9 @@
 - **ธีมกราฟิก**: สีดำ-ขาว (Black Background, White Elements) ในสไตล์ Pixel 8-bit (ใช้ Pixel font และลูกบอลทรงสี่เหลี่ยม)
 - **แพลตฟอร์ม**: รองรับการเล่นผ่าน Web Browser ทั้งบน PC และอุปกรณ์ Mobile
 - **Frame Rate & Interpolation**: Backend ประมวลผลและส่งข้อมูลสถานะที่ความถี่ 60 FPS จากนั้น Frontend ดำเนิน Client-Side Prediction (Interpolation) เพื่อให้การแสดงผลลื่นไหลในระดับ 60 FPS หรือมากกว่า
+- **Input Handling**: 
+  - **`main` Branch:** Client ส่งพิกัด Pad ไปให้ Server โดยตรง (Hybrid Approach)
+  - **`professional-netcode` Branch:** Client ส่งแค่ Input (LEFT/RIGHT/STOP) และ Server คำนวณตำแหน่งเอง (Strict Server Authoritative)
 
 ## 2. ระบบห้องและการจับคู่ (Room & Matchmaking)
 - **สถานะผู้เล่น**:

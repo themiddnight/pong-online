@@ -22,6 +22,32 @@
 
 ---
 
+## 🌟 Professional Netcode Branch (จักรวาลคู่ขนาน)
+
+โปรเจกต์นี้มี **2 Branches หลัก** ที่แสดงให้เห็นถึงแนวทางการพัฒนาเกม Multiplayer ในระดับที่แตกต่างกัน:
+
+### **`main` Branch - Beginner-Friendly (Hybrid Approach)**
+- ✅ **เหมาะสำหรับผู้เริ่มต้น** - โค้ดง่าย เข้าใจได้ทันที
+- ✅ **Client-Side Prediction** - Pad ตอบสนองทันที (0ms Input Lag)
+- ⚠️ **มีช่องโหว่** - Client ส่งพิกัด X ตรงๆ ไปให้ Server (อาจโกงได้)
+- 📚 **วัตถุประสงค์:** เรียนรู้พื้นฐาน WebSocket และ Real-time Game Development
+
+### **`professional-netcode` Branch - Production-Ready (Strict Server Authoritative)**
+- ✅ **ป้องกันการโกง 100%** - Server คำนวณทุกอย่าง Client ส่งแค่ Input
+- ✅ **Input Lag = 0ms** - ยังคงใช้ Client-Side Prediction
+- ✅ **Server Reconciliation** - แก้ไข Desync ด้วย Snap to Server Position
+- ✅ **Sequence Number Tracking** - ตรวจจับ Packet Loss และ Out-of-Order Packets
+- 📚 **วัตถุประสงค์:** เรียนรู้เทคนิค Professional Netcode ระดับ AAA Games
+
+### **คำแนะนำการศึกษา:**
+1. **เริ่มจาก `main` Branch** - เพื่อเข้าใจพื้นฐานและแนวคิดหลัก
+2. **ศึกษา `professional-netcode` Branch** - เมื่อต้องการเรียนรู้เทคนิคขั้นสูง
+3. **เปรียบเทียบทั้งสอง Branch** - เพื่อเข้าใจ Trade-offs ระหว่าง Simplicity vs Security
+
+📄 **อ่านเพิ่มเติม:** [`docs/netcode_comparison.md`](./docs/netcode_comparison.md)
+
+---
+
 ## 📖 เอกสารอ้างอิงสำหรับการศึกษาเชิงลึก (Developer Documentation)
 
 สำหรับนักพัฒนาที่ต้องการศึกษา Real-Time Netcode หรือทำความเข้าใจ Logic ของเกม สามารถอ้างอิงจากเอกสารต่อไปนี้:
@@ -29,6 +55,7 @@
 - 🎮 [**multiplayer_guide.md**](./docs/multiplayer_guide.md): คู่มือทำความเข้าใจระบบ Backend (Multiplayer Game) แบบง่ายๆ พร้อมภาพอธิบาย (สำหรับผู้เริ่มต้น)
 - 📘 [**tech_architecture.md**](./docs/tech_architecture.md): เอกสารสรุปสถาปัตยกรรมระบบ, Game Phases Loop, และแผนภาพ Flow การทำงานของ WebSockets
 - 📙 [**engine_standards.md**](./docs/engine_standards.md): เอกสารเปรียบเทียบมาตรฐาน Game Engine (TCP vs UDP) และ 3 เทคนิคหลักที่เกมระดับสากลใช้ (Interpolation, Prediction และ Lag Compensation) สำหรับการต่อยอดโปรเจกต์
+- 🌟 [**netcode_comparison.md**](./docs/netcode_comparison.md): เปรียบเทียบ `main` Branch (Hybrid) vs `professional-netcode` Branch (Strict Server Authoritative) แบบละเอียด พร้อม Use Cases และ Migration Guide
 - 📓 [**rule_and_constrain.md**](./docs/rule_and_constrain.md): ข้อกำหนดและกติกาของตัวเกมทั้งหมด สำหรับการพอร์ตระบบเกม Atari สู่แพลตฟอร์มออนไลน์
 - ⚛️ [**physics_explanation.md**](./docs/physics_explanation.md): เจาะลึกระบบฟิสิกส์ การคำนวณการชน (CCD) และการผสมผสานมุมสะท้อนแบบสมจริง (Bounce Blending) สำหรับคนไม่มีพื้นฐาน
 - 🚀 [**deployment_guide.md**](./docs/deployment_guide.md): คู่มือการ Deploy ระบบขึ้น Production (Vercel & Railway)

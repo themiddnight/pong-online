@@ -9,6 +9,7 @@ export const ARENA_HEIGHT = 1500;
 export const PAD_WIDTH = 200;
 export const PAD_HEIGHT = 40;
 export const PAD_OFFSET_Y = 100; // Distance from top/bottom edge
+export const PAD_SPEED = 600; // units per second
 
 export const BALL_SIZE = 30;
 export const BALL_SPEED_START = 800; // units per second
@@ -25,9 +26,11 @@ export enum WebSocketEvents {
   // Client -> Server
   JOIN_ROOM = 'JOIN_ROOM',
   CREATE_ROOM = 'CREATE_ROOM',
-  PAD_MOVE = 'PAD_MOVE',
-  ACTION_SERVE = 'ACTION_SERVE',
-  ACTION_POWER_HIT = 'ACTION_POWER_HIT',
+  PAD_MOVE = 'PAD_MOVE', // Deprecated: kept for reference, use PLAYER_INPUT instead
+  PLAYER_INPUT = 'PLAYER_INPUT', // New: Input-based movement
+  ACTION_INPUT = 'ACTION_INPUT', // New: Input-based actions (Serve/Power Hit)
+  ACTION_SERVE = 'ACTION_SERVE', // Deprecated
+  ACTION_POWER_HIT = 'ACTION_POWER_HIT', // Deprecated
 
   // Server -> Client
   ROOM_CREATED = 'ROOM_CREATED',
@@ -39,4 +42,23 @@ export enum WebSocketEvents {
   PLAYER_DISCONNECTED = 'PLAYER_DISCONNECTED',
   PLAYER_RECONNECTED = 'PLAYER_RECONNECTED',
   GAME_OVER = 'GAME_OVER'
+}
+
+// Professional Netcode Types
+export interface PlayerInput {
+  sequenceNumber: number;
+  timestamp: number;
+  movement: 'LEFT' | 'RIGHT' | 'STOP';
+}
+
+export interface ActionInput {
+  sequenceNumber: number;
+  timestamp: number;
+  action: 'SERVE' | 'POWER_HIT';
+}
+
+export interface GameStateUpdate {
+  state: any; // GameState type from types.ts
+  timestamp: number;
+  lastProcessedInput: { [key: string]: number }; // Map of PlayerRole -> last processed sequence number
 }
