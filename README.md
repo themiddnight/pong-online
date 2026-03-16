@@ -5,6 +5,8 @@
 
 ขับเคลื่อนด้วย **Authoritative Game Server**, **WebSockets**, และ **Client-Side Prediction Rendering**
 
+> ⚠️ **หมายเหตุสำคัญ:** Branch นี้ (`main`) ใช้แนวทาง **Hybrid Approach** ที่เหมาะสำหรับการศึกษาและเข้าใจง่าย แต่มีข้อจำกัดด้าน Security (Client สามารถส่งพิกัดปลอมได้) หากต้องการดูการ implement แบบ **Production-Ready** ที่ป้องกันการโกง 100% ให้เปลี่ยนไปที่ Branch `professional-netcode` 🔒
+
 ---
 
 ## 🏗 โครงสร้างโปรเจกต์ (Monorepo Workspaces)

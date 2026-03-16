@@ -167,9 +167,19 @@ export function Arena({ role }: ArenaProps) {
   const getRenderY = (y: number) => isInverted ? ARENA_HEIGHT - y : y;
   const getRenderX = (x: number) => isInverted ? ARENA_WIDTH - x : x;
 
-  // Use ballDisplay for ball rendering (handles bounce animation), fallback to ball.position
-  const ballPos = ballDisplay?.pos ?? ball.position;
-  const ballTransition = ballDisplay?.transition ?? 'left 16ms linear, top 16ms linear';
+  // Calculate ball position with local prediction during SERVING phase
+  let ballPos = ballDisplay?.pos ?? ball.position;
+  let ballTransition = ballDisplay?.transition ?? 'left 16ms linear, top 16ms linear';
+  
+  // If we are serving and using local pad prediction, calculate ball position locally to prevent jitter
+  if (renderState.phase === GamePhase.SERVING && renderState.serverTurn === role && localX !== null && me) {
+    const padYOffset = role === PlayerRole.CREATOR ? -(PAD_HEIGHT/2 + BALL_SIZE/2) : (PAD_HEIGHT/2 + BALL_SIZE/2);
+    ballPos = {
+      x: localX,
+      y: me.position.y + padYOffset
+    };
+    ballTransition = 'none'; // No transition during local serving to stick perfectly
+  }
 
   return (
     <>
